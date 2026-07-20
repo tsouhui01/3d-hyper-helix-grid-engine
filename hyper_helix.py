@@ -37,7 +37,7 @@ def rotate_project(x: float, y: float, z: float, phase: float, config: Config):
     return config.width / 2 + x * factor, config.height / 2 - y * factor, factor
 
 
-def helix_points(phase: float, config: Config):
+def helix_points(phase: float, config: Config, expansion: float = 1.0):
     """建立兩條互相纏繞、半徑呼吸變化的 3D 螺旋。"""
     strands = [[], []]
     for index in range(config.points):
@@ -49,7 +49,9 @@ def helix_points(phase: float, config: Config):
             theta = angle + strand * math.pi
             x = radius * math.cos(theta)
             y = radius * math.sin(theta)
-            strands[strand].append((*rotate_project(x, y, z, phase, config), progress))
+            sx, sy, factor = rotate_project(x, y, z, phase, config)
+            cx, cy = config.width / 2, config.height / 2
+            strands[strand].append((cx + (sx - cx) * expansion, cy + (sy - cy) * expansion, factor * expansion, progress))
     return strands
 
 
@@ -57,6 +59,9 @@ class HyperHelixApp:
     def __init__(self, config: Config):
         self.config = config
         self.phase = 0.0
+        self.expansion = 0.025
+        self.expansion_speed = 0.008
+        self.reset_expansion = 2.25
         self.running = True
         self.root = tk.Tk()
         self.root.title("Python｜3D Hyper-Helix Grid Engine（Esc 離開）")
@@ -86,7 +91,7 @@ class HyperHelixApp:
         if not self.running:
             return
         self.canvas.delete("frame")
-        strands = helix_points(self.phase, self.config)
+        strands = helix_points(self.phase, self.config, self.expansion)
 
         # 橫向能量梯：每隔數點連接雙股螺旋，形成 3D 網格。
         for index in range(0, self.config.points, 3):
@@ -114,6 +119,10 @@ class HyperHelixApp:
             self.canvas.create_oval(x-radius, y-radius, x+radius, y+radius, fill=color, outline="", tags="frame")
 
         self.phase = (self.phase + 0.035) % math.tau
+        self.expansion += self.expansion_speed
+        if self.expansion >= self.reset_expansion:
+            self.expansion = 0.025
+            self.phase = 0.0
         self.root.after(round(1000 / self.config.fps), self.draw_frame)
 
     def run(self, close_after_ms: int | None = None):
@@ -151,6 +160,9 @@ def main():
     if args.check:
         strands = helix_points(0.0, config)
         assert len(strands) == 2 and all(len(item) == config.points for item in strands)
+        tiny = helix_points(0.0, config, 0.025)
+        center = (config.width / 2, config.height / 2)
+        assert math.dist(tiny[0][-1][:2], center) < math.dist(strands[0][-1][:2], center)
         print("核心檢查通過：雙股螺旋座標與透視投影正常。")
     elif args.export_svg:
         export_svg(args.export_svg, config)
